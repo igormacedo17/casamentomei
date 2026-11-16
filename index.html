@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lista de presentes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gloock&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#F5F0F3; --surface:#FFFFFF; --ink:#2B1E2A; --muted:#6E5F6C; --line:#E3D7DE;
+  --accent:#7B2D4B; --accent-ink:#FFFFFF; --sage:#6F8063; --gold:#A8834A; --warn:#9A3B2E;
+  --serif:"Gloock", Georgia, "Times New Roman", serif;
+  --sans:"Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#1C1519; --surface:#261D23; --ink:#F1E8EE; --muted:#B4A3AF; --line:#3A2C35;
+    --accent:#D98AA8; --accent-ink:#1C1519; --sage:#A9B79C; --gold:#CDAA6E; --warn:#E59A8C;
+    color-scheme: dark;
+  }
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:17px;line-height:1.5;
+  padding-bottom:env(safe-area-inset-bottom,0px)}
+img{max-width:100%;display:block}
+a{color:var(--accent)}
+button,input,textarea,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:760px;margin:0 auto;padding:0 20px}
+
+/* Hero */
+.hero{text-align:center;padding:calc(64px + env(safe-area-inset-top,0px)) 20px 40px}
+.hero h1{font-family:var(--serif);font-weight:400;font-size:clamp(3rem,13vw,6.2rem);line-height:.95;margin:0;letter-spacing:-.01em}
+.hero h1 .amp{display:block;font-size:.45em;color:var(--gold);margin:.15em 0}
+.hero .data{margin:28px 0 0;font-size:1.05rem;color:var(--muted)}
+.hero .msg{max-width:52ch;margin:20px auto 0;color:var(--ink)}
+.como{max-width:56ch;margin:0 auto 8px;padding:20px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);color:var(--muted);font-size:.95rem;text-align:center}
+
+/* Lista */
+.lista{list-style:none;margin:32px 0 0;padding:0}
+.item{display:grid;grid-template-columns:72px 1fr auto;gap:16px;align-items:center;padding:20px 0;border-bottom:1px solid var(--line)}
+.thumb{width:72px;height:72px;border-radius:50%;background:var(--surface);border:1px solid var(--line);display:grid;place-items:center;font-size:2rem;overflow:hidden}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.item h3{font-family:var(--serif);font-weight:400;font-size:1.35rem;margin:0;line-height:1.2}
+.item .desc{margin:2px 0 0;color:var(--muted);font-size:.92rem}
+.item .preco{margin:6px 0 0;font-weight:600}
+.cotas{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;align-items:center}
+.cota{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--accent)}
+.cota.tomada{background:var(--accent)}
+.cotas small{color:var(--muted);font-size:.82rem;margin-left:6px}
+.btn{border:0;border-radius:999px;padding:11px 20px;background:var(--accent);color:var(--accent-ink);font-weight:600;cursor:pointer}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.sec{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.bloco{display:block;width:100%;text-align:center;text-decoration:none;margin-top:8px}
+.btn.peq{padding:6px 12px;font-size:.85rem}
+.vazio{padding:40px 0;text-align:center;color:var(--muted)}
+.escolhidos{margin-top:16px;color:var(--muted);font-size:.92rem;text-align:center}
+@media (max-width:520px){
+  .item{grid-template-columns:56px 1fr;}
+  .thumb{width:56px;height:56px;font-size:1.6rem}
+  .item .acao{grid-column:2}
+}
+
+/* Mural */
+.mural{margin:64px 0 40px}
+.mural h2,.admin h2{font-family:var(--serif);font-weight:400;font-size:2rem;margin:0 0 16px}
+.recado{padding:16px 0;border-top:1px solid var(--line)}
+.recado p{margin:0;font-family:var(--serif);font-size:1.1rem;line-height:1.55}
+.recado span{display:block;margin-top:6px;color:var(--muted);font-size:.88rem}
+footer{text-align:center;padding:32px 20px 48px;color:var(--muted);font-size:.85rem}
+footer a{color:var(--muted)}
+
+/* Modal */
+dialog{border:0;border-radius:20px;padding:0;width:min(460px,calc(100vw - 24px));background:var(--surface);color:var(--ink);max-height:calc(100dvh - 24px)}
+dialog::backdrop{background:rgba(20,10,18,.55)}
+.modal{padding:24px;overflow:auto}
+.modal h3{font-family:var(--serif);font-weight:400;font-size:1.7rem;margin:0 32px 4px 0;line-height:1.15}
+.fechar{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-size:1.2rem;line-height:1}
+label{display:block;font-size:.9rem;font-weight:500;margin:16px 0 6px}
+input[type=text],input[type=number],input[type=email],input[type=password],input[type=url],input[type=date],textarea,select{
+  width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+textarea{min-height:84px;resize:vertical}
+.check{display:flex;gap:8px;align-items:center;font-weight:400;margin-top:12px}
+.metodos{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.metodo{border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;display:block;margin:0}
+.metodo input{position:absolute;opacity:0;pointer-events:none}
+.metodo strong{display:block}
+.metodo span{font-size:.85rem;color:var(--muted)}
+.metodo:has(input:checked){border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.metodo:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.total{display:flex;justify-content:space-between;align-items:baseline;margin:20px 0 16px;padding-top:16px;border-top:1px solid var(--line)}
+.total strong{font-family:var(--serif);font-weight:400;font-size:1.6rem}
+.erro{color:var(--warn);font-size:.9rem;margin:10px 0 0}
+.valor-grande{font-family:var(--serif);font-size:2.4rem;text-align:center;margin:12px 0 4px}
+.nota{font-size:.9rem;color:var(--muted);text-align:center;margin:0 0 16px}
+#qr{display:grid;place-items:center;padding:14px;background:#fff;border-radius:14px;width:max-content;margin:0 auto 14px}
+.copia{display:flex;gap:8px}
+.copia input{font-size:.8rem}
+
+/* Admin */
+.admin{padding:calc(32px + env(safe-area-inset-top,0px)) 0 48px}
+.abas{display:flex;gap:6px;border-bottom:1px solid var(--line);margin:16px 0 20px;overflow-x:auto}
+.aba{border:0;background:none;padding:10px 14px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;font-weight:500;white-space:nowrap}
+.aba[aria-selected=true]{color:var(--ink);border-color:var(--accent)}
+.grade{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.grade .full{grid-column:1/-1}
+@media (max-width:520px){.grade{grid-template-columns:1fr}}
+.linha-admin{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.linha-admin .info{min-width:0}
+.linha-admin small{color:var(--muted);display:block}
+.acoes{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
+.resumo{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:16px}
+.resumo div span{display:block;color:var(--muted);font-size:.85rem}
+.resumo div strong{font-family:var(--serif);font-weight:400;font-size:1.5rem}
+.tabela{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:500}
+.status{padding:2px 8px;border-radius:999px;font-size:.78rem;border:1px solid var(--line);white-space:nowrap}
+.status.confirmado{border-color:var(--sage);color:var(--sage)}
+.status.pendente{border-color:var(--gold);color:var(--gold)}
+.status.informado{border-color:var(--accent);color:var(--accent)}
+.status.cancelado{color:var(--muted);text-decoration:line-through}
+.dica{font-size:.82rem;color:var(--muted);margin:4px 0 0}
+.barra{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.barra select{width:auto}
+.aviso{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;margin:24px 0}
+@media (prefers-reduced-motion:no-preference){
+  .hero h1{animation:entra .9s ease-out both}
+  @keyframes entra{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+}
+</style>
+</head>
+<body>
+
+<!-- ===================== ÁREA PÚBLICA ===================== -->
+<div id="publico">
+  <header class="hero">
+    <h1 id="nomes">Igor<span class="amp">&amp;</span>Marcelle</h1>
+    <p class="data" id="data"></p>
+    <p class="msg" id="mensagem"></p>
+  </header>
+
+  <main class="wrap">
+    <p class="como">Escolha um presente, reserve quantas cotas quiser e pague por Pix ou cartão. Os presentes são simbólicos: o valor vai direto para os noivos.</p>
+    <div id="avisoConfig" class="aviso" hidden></div>
+    <ul class="lista" id="lista"><li class="vazio">Carregando presentes…</li></ul>
+    <p class="escolhidos" id="escolhidos" hidden></p>
+
+    <section class="mural" id="muralSec" hidden>
+      <h2>Recados</h2>
+      <div id="mural"></div>
+    </section>
+  </main>
+
+  <footer><a href="#admin">Área dos noivos</a></footer>
+</div>
+
+<!-- ===================== ADMIN ===================== -->
+<div id="admin" class="wrap admin" hidden>
+  <div id="login">
+    <h2>Área dos noivos</h2>
+    <label for="lEmail">E-mail</label>
+    <input type="email" id="lEmail" autocomplete="username">
+    <label for="lSenha">Senha</label>
+    <input type="password" id="lSenha" autocomplete="current-password">
+    <p class="erro" id="lErro" hidden></p>
+    <p style="margin-top:20px;display:flex;gap:8px">
+      <button class="btn" id="btnEntrar">Entrar</button>
+      <a class="btn sec" href="#">Voltar ao site</a>
+    </p>
+  </div>
+
+  <div id="painel" hidden>
+    <div class="linha-admin" style="border:0;padding:0">
+      <h2 style="margin:0">Área dos noivos</h2>
+      <div class="acoes"><a class="btn sec peq" href="#">Ver site</a><button class="btn sec peq" id="btnSair">Sair</button></div>
+    </div>
+    <div class="abas" role="tablist">
+      <button class="aba" role="tab" data-aba="reservas" aria-selected="true">Reservas</button>
+      <button class="aba" role="tab" data-aba="presentes" aria-selected="false">Presentes</button>
+      <button class="aba" role="tab" data-aba="config" aria-selected="false">Configurações</button>
+    </div>
+
+    <!-- Reservas -->
+    <section data-painel="reservas">
+      <div class="resumo">
+        <div><span>Confirmado</span><strong id="rConf">R$ 0</strong></div>
+        <div><span>Avisaram que pagaram</span><strong id="rInf">R$ 0</strong></div>
+        <div><span>Sem aviso</span><strong id="rPend">R$ 0</strong></div>
+        <div><span>Reservas</span><strong id="rQtd">0</strong></div>
+      </div>
+      <div class="barra">
+        <select id="fStatus" aria-label="Filtrar por status">
+          <option value="">Todos os status</option>
+          <option value="informado">Avisaram que pagaram</option>
+          <option value="pendente">Sem aviso</option>
+          <option value="confirmado">Confirmados</option>
+          <option value="cancelado">Cancelados</option>
+        </select>
+        <button class="btn sec peq" id="btnExport">Exportar Excel</button>
+        <button class="btn sec peq" id="btnLiberar">Liberar reservas sem aviso há mais de 3 dias</button>
+      </div>
+      <p class="dica">Confira no extrato o nome de quem pagou e o valor, depois toque em Confirmar.</p>
+      <div class="tabela"><table>
+        <thead><tr><th>Data</th><th>Convidado</th><th>Presente</th><th>Valor</th><th>Método</th><th>Status</th><th></th></tr></thead>
+        <tbody id="tReservas"></tbody>
+      </table></div>
+    </section>
+
+    <!-- Presentes -->
+    <section data-painel="presentes" hidden>
+      <h3 id="fTitulo" style="font-family:var(--serif);font-weight:400;font-size:1.4rem;margin:0">Novo presente</h3>
+      <div class="grade">
+        <div class="full"><label for="pNome">Nome do presente</label><input type="text" id="pNome" placeholder="Televisão da sala"></div>
+        <div class="full"><label for="pDesc">Descrição (opcional)</label><input type="text" id="pDesc" placeholder="Para as noites de filme"></div>
+        <div><label for="pValor">Valor de cada cota (R$)</label><input type="number" id="pValor" min="1" step="0.01" placeholder="300"></div>
+        <div><label for="pCotas">Quantidade de cotas</label><input type="number" id="pCotas" min="1" step="1" placeholder="10"></div>
+        <div><label for="pEmoji">Emoji</label><input type="text" id="pEmoji" placeholder="📺" maxlength="4"></div>
+        <div><label for="pOrdem">Ordem na lista</label><input type="number" id="pOrdem" step="1" placeholder="1"></div>
+        <div class="full"><label for="pImg">Link da imagem (opcional, substitui o emoji)</label><input type="url" id="pImg" placeholder="https://…"></div>
+        <div class="full"><label for="pLink">Link de cartão só deste presente (opcional)</label><input type="url" id="pLink" placeholder="Se vazio, usa o link geral das configurações">
+          <p class="dica">Útil se o presente tem só 1 cota: crie no Mercado Pago/PagBank um link com o valor exato já com a taxa.</p></div>
+        <div class="full"><label class="check"><input type="checkbox" id="pAtivo" checked> Mostrar no site</label></div>
+      </div>
+      <p class="erro" id="pErro" hidden></p>
+      <p style="display:flex;gap:8px;margin:16px 0 32px">
+        <button class="btn" id="btnSalvarPresente">Salvar presente</button>
+        <button class="btn sec" id="btnCancelarEdicao" hidden>Cancelar edição</button>
+      </p>
+      <div id="listaAdmin"></div>
+    </section>
+
+    <!-- Configurações -->
+    <section data-painel="config" hidden>
+      <div class="grade">
+        <div><label for="cNome1">Nome 1</label><input type="text" id="cNome1"></div>
+        <div><label for="cNome2">Nome 2</label><input type="text" id="cNome2"></div>
+        <div><label for="cData">Data do casamento</label><input type="date" id="cData"></div>
+        <div></div>
+        <div class="full"><label for="cMsg">Mensagem de boas-vindas</label><textarea id="cMsg"></textarea></div>
+        <div class="full"><label for="cChave">Chave Pix</label><input type="text" id="cChave" placeholder="E-mail, chave aleatória ou +5511999999999">
+          <p class="dica">Telefone no formato +55DDDnúmero. Evite usar CPF para não expor seus dados.</p></div>
+        <div><label for="cBenef">Nome do recebedor</label><input type="text" id="cBenef" placeholder="Como aparece no banco"></div>
+        <div><label for="cCidade">Cidade do recebedor</label><input type="text" id="cCidade" placeholder="Sao Paulo"></div>
+        <div><label for="cTaxa">Acréscimo no cartão (%)</label><input type="number" id="cTaxa" min="0" step="0.1" placeholder="5"></div>
+        <div><label for="cWhats">WhatsApp para comprovantes (opcional)</label><input type="text" id="cWhats" placeholder="5511999999999"></div>
+        <div class="full"><label for="cLink">Link geral de pagamento no cartão</label><input type="url" id="cLink" placeholder="https://…">
+          <p class="dica">Use um link de valor livre (o convidado digita o valor mostrado no site).</p></div>
+      </div>
+      <p class="erro" id="cErro" hidden></p>
+      <p style="margin:16px 0 40px"><button class="btn" id="btnSalvarConfig">Salvar configurações</button></p>
+      <h3 style="font-family:var(--serif);font-weight:400;font-size:1.4rem;margin:0 0 8px">Recados no mural</h3>
+      <div id="recadosAdmin"></div>
+    </section>
+  </div>
+</div>
+
+<!-- ===================== MODAL ===================== -->
+<dialog id="modal">
+  <button class="fechar" id="btnFechar" aria-label="Fechar">×</button>
+  <div class="modal">
+    <div id="passo1">
+      <h3 id="mTitulo"></h3>
+      <p class="nota" id="mSub" style="text-align:left;margin:0"></p>
+      <label for="mNome">Seu nome</label>
+      <input type="text" id="mNome" autocomplete="name">
+      <label for="mPagador">Nome de quem vai pagar</label>
+      <input type="text" id="mPagador">
+      <p class="dica">Como aparece na conta do banco ou no cartão. Mude se outra pessoa for pagar por você.</p>
+      <div id="mCotasBox">
+        <label for="mCotas">Quantas cotas?</label>
+        <input type="number" id="mCotas" min="1" step="1" value="1">
+      </div>
+      <label for="mMsg">Recado para os noivos (opcional)</label>
+      <textarea id="mMsg"></textarea>
+      <label class="check"><input type="checkbox" id="mMural" checked> Mostrar meu recado no mural</label>
+      <label>Forma de pagamento</label>
+      <div class="metodos">
+        <label class="metodo"><input type="radio" name="metodo" value="pix" checked><strong>Pix</strong><span>Sem acréscimo</span></label>
+        <label class="metodo"><input type="radio" name="metodo" value="cartao"><strong>Cartão</strong><span id="mTaxaTxt">Com acréscimo</span></label>
+      </div>
+      <div class="total"><span>Total</span><strong id="mTotal">R$ 0</strong></div>
+      <button class="btn" style="width:100%" id="btnReservar">Reservar presente</button>
+      <p class="erro" id="mErro" hidden></p>
+    </div>
+
+    <div id="passo2" hidden>
+      <h3>Presente reservado</h3>
+      <div id="resPix" hidden>
+        <p class="valor-grande" id="pixValor"></p>
+        <p class="nota">Escaneie o QR Code ou copie o código no app do seu banco.</p>
+        <div id="qr"></div>
+        <label for="pixCopia">Pix copia e cola</label>
+        <div class="copia">
+          <input type="text" id="pixCopia" readonly>
+          <button class="btn peq" id="btnCopiar">Copiar</button>
+        </div>
+      </div>
+      <div id="resCartao" hidden>
+        <p class="valor-grande" id="cartaoValor"></p>
+        <p class="nota">Se o link pedir o valor, digite o valor acima.</p>
+        <a class="btn" style="display:block;text-align:center;text-decoration:none" id="cartaoLink" target="_blank" rel="noopener">Pagar com cartão</a>
+      </div>
+      <div id="avisarBox" style="margin-top:24px;border-top:1px solid var(--line);padding-top:16px">
+        <p class="nota">Depois de pagar, avise os noivos para eles confirmarem seu presente.</p>
+        <button class="btn bloco" id="btnJaPaguei">Já paguei</button>
+        <a class="btn sec bloco" id="btnWhats" target="_blank" rel="noopener" hidden>Enviar comprovante pelo WhatsApp</a>
+        <button class="btn sec bloco" id="btnDepois">Vou pagar depois</button>
+      </div>
+      <div id="obrigadoBox" hidden style="margin-top:24px">
+        <p class="valor-grande" style="font-size:1.8rem">Obrigado pelo carinho!</p>
+        <p class="nota">Os noivos foram avisados do seu pagamento.</p>
+        <button class="btn sec bloco" id="btnPronto">Fechar</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<script>
+/* =========================================================
+   1) COLE AQUI A CONFIGURAÇÃO DO SEU PROJETO FIREBASE
+   ========================================================= */
+const firebaseConfig = {
+  apiKey: "COLE_AQUI",
+  authDomain: "COLE_AQUI",
+  projectId: "COLE_AQUI",
+  storageBucket: "COLE_AQUI",
+  messagingSenderId: "COLE_AQUI",
+  appId: "COLE_AQUI"
+};
+const P = "casamento_"; // prefixo das coleções no Firestore
+
+/* ========================================================= */
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const brl = v => Number(v || 0).toLocaleString("pt-BR", {style:"currency", currency:"BRL"});
+const mostra = (el, txt) => { el.textContent = txt; el.hidden = !txt; };
+
+let db, auth, cfg = {}, presentes = [], reservas = [], recados = [], atual = null, editandoId = null;
+let unsubAdmin = [], cfgOk = false, reservaId = null, pagadorEditado = false, ultimaReserva = null;
+
+if (firebaseConfig.apiKey === "COLE_AQUI") {
+  $("lista").innerHTML = "";
+  $("avisoConfig").hidden = false;
+  $("avisoConfig").textContent = "Falta configurar o Firebase: cole a configuração do projeto no início do script deste arquivo.";
+} else {
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+  auth = firebase.auth();
+  iniciar();
+}
+
+/* ---------------- PIX (BR Code estático) ---------------- */
+function tlv(id, v){ return id + String(v.length).padStart(2, "0") + v; }
+function limpa(s, max){ return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9 ]/g, "").toUpperCase().slice(0, max).trim(); }
+function crc16(str){
+  let crc = 0xFFFF;
+  for (let i = 0; i < str.length; i++){
+    crc ^= str.charCodeAt(i) << 8;
+    for (let j = 0; j < 8; j++){ crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1); crc &= 0xFFFF; }
+  }
+  return crc.toString(16).toUpperCase().padStart(4, "0");
+}
+function payloadPix(valor){
+  const conta = tlv("00", "br.gov.bcb.pix") + tlv("01", String(cfg.pixChave || "").trim());
+  let p = tlv("00", "01") + tlv("26", conta) + tlv("52", "0000") + tlv("53", "986") +
+          tlv("54", valor.toFixed(2)) + tlv("58", "BR") +
+          tlv("59", limpa(cfg.pixNome, 25) || "NOIVOS") + tlv("60", limpa(cfg.pixCidade, 15) || "BRASIL") +
+          tlv("62", tlv("05", "***")) + "6304";
+  return p + crc16(p);
+}
+
+/* ---------------- INÍCIO ---------------- */
+function iniciar(){
+  db.collection(P + "config").doc("geral").onSnapshot(d => {
+    cfg = d.data() || {}; renderCabecalho(); renderLista();
+    if (!cfgOk){ cfgOk = true; if (auth.currentUser) preencherConfig(); }
+  });
+  db.collection(P + "presentes").onSnapshot(s => {
+    presentes = s.docs.map(d => ({id: d.id, ...d.data()})).sort((a, b) => (a.ordem ?? 999) - (b.ordem ?? 999) || a.nome.localeCompare(b.nome));
+    renderLista(); renderListaAdmin();
+  });
+  db.collection(P + "recados").orderBy("criadoEm", "desc").onSnapshot(s => {
+    recados = s.docs.map(d => ({id: d.id, ...d.data()}));
+    renderMural(); renderRecadosAdmin();
+  });
+  auth.onAuthStateChanged(u => {
+    $("login").hidden = !!u; $("painel").hidden = !u;
+    unsubAdmin.forEach(f => f()); unsubAdmin = [];
+    if (u){
+      unsubAdmin.push(db.collection(P + "reservas").orderBy("criadoEm", "desc").onSnapshot(s => {
+        reservas = s.docs.map(d => ({id: d.id, ...d.data()})); renderReservas();
+      }, e => alert("Sem permissão para ver reservas. Confira as regras do Firestore.")));
+      if (cfgOk) preencherConfig();
+    }
+  });
+  window.addEventListener("hashchange", rota); rota();
+}
+function rota(){
+  const adm = location.hash === "#admin";
+  $("admin").hidden = !adm; $("publico").hidden = adm;
+  window.scrollTo(0, 0);
+}
+
+/* ---------------- PÚBLICO ---------------- */
+function renderCabecalho(){
+  const n1 = cfg.nome1 || "Igor", n2 = cfg.nome2 || "Marcelle";
+  $("nomes").innerHTML = `${esc(n1)}<span class="amp">&amp;</span>${esc(n2)}`;
+  document.title = `Lista de presentes · ${n1} e ${n2}`;
+  if (cfg.data){
+    const d = new Date(cfg.data + "T12:00:00");
+    const dias = Math.ceil((d - new Date()) / 864e5);
+    $("data").textContent = d.toLocaleDateString("pt-BR", {day:"numeric", month:"long", year:"numeric"}) +
+      (dias > 0 ? `, faltam ${dias} ${dias === 1 ? "dia" : "dias"}` : "");
+  } else $("data").textContent = "";
+  $("mensagem").textContent = cfg.mensagem || "";
+}
+function bolinhas(p){
+  const total = p.totalCotas, res = p.reservadas || 0, rest = total - res;
+  if (total === 1) return "";
+  if (total > 24) return `<div class="cotas"><small>${rest} de ${total} cotas disponíveis</small></div>`;
+  let h = "";
+  for (let i = 0; i < total; i++) h += `<span class="cota${i < res ? " tomada" : ""}"></span>`;
+  return `<div class="cotas" aria-label="${rest} de ${total} cotas disponíveis">${h}<small>${rest} de ${total} disponíveis</small></div>`;
+}
+function renderLista(){
+  if (!db) return;
+  const ativos = presentes.filter(p => p.ativo !== false);
+  const disp = ativos.filter(p => p.totalCotas - (p.reservadas || 0) > 0);
+  const esgot = ativos.length - disp.length;
+  $("lista").innerHTML = disp.length ? disp.map(p => `
+    <li class="item">
+      <div class="thumb">${p.imagem ? `<img src="${esc(p.imagem)}" alt="">` : esc(p.emoji || "🎁")}</div>
+      <div>
+        <h3>${esc(p.nome)}</h3>
+        ${p.descricao ? `<p class="desc">${esc(p.descricao)}</p>` : ""}
+        <p class="preco">${brl(p.valorCota)}${p.totalCotas > 1 ? " por cota" : ""}</p>
+        ${bolinhas(p)}
+      </div>
+      <div class="acao"><button class="btn" data-presentear="${p.id}">Presentear</button></div>
+    </li>`).join("")
+    : `<li class="vazio">${ativos.length ? "Todos os presentes já foram escolhidos. Obrigado!" : "Nenhum presente cadastrado ainda."}</li>`;
+  mostra($("escolhidos"), esgot ? `${esgot} ${esgot === 1 ? "presente já foi escolhido" : "presentes já foram escolhidos"} 💛` : "");
+}
+function renderMural(){
+  $("muralSec").hidden = !recados.length;
+  $("mural").innerHTML = recados.map(r => `<div class="recado"><p>${esc(r.mensagem)}</p><span>${esc(r.nome)}</span></div>`).join("");
+}
+
+/* ---------------- MODAL / RESERVA ---------------- */
+$("lista").addEventListener("click", e => {
+  const id = e.target.closest("[data-presentear]")?.dataset.presentear;
+  if (id) abrirModal(id);
+});
+function abrirModal(id){
+  atual = presentes.find(p => p.id === id); if (!atual) return;
+  const rest = atual.totalCotas - (atual.reservadas || 0);
+  $("mTitulo").textContent = atual.nome;
+  $("mSub").textContent = atual.totalCotas > 1 ? `${brl(atual.valorCota)} por cota · ${rest} disponíveis` : brl(atual.valorCota);
+  $("mCotasBox").hidden = rest <= 1;
+  $("mCotas").max = rest; $("mCotas").value = 1;
+  $("mMsg").value = ""; $("mMural").checked = true;
+  $("mPagador").value = $("mNome").value; pagadorEditado = false;
+  $("avisarBox").hidden = false; $("obrigadoBox").hidden = true; $("btnJaPaguei").disabled = false;
+  document.querySelector('input[name=metodo][value=pix]').checked = true;
+  const taxa = Number(cfg.taxaCartao || 0);
+  $("mTaxaTxt").textContent = taxa ? `+${String(taxa).replace(".", ",")}%` : "Sem acréscimo";
+  mostra($("mErro"), "");
+  $("passo1").hidden = false; $("passo2").hidden = true;
+  $("btnReservar").disabled = false;
+  atualizaTotal();
+  $("modal").showModal();
+}
+function metodo(){ return document.querySelector('input[name=metodo]:checked').value; }
+function calcula(cotas, met){
+  const base = atual.valorCota * cotas;
+  return met === "cartao" ? Math.round(base * (1 + Number(cfg.taxaCartao || 0) / 100) * 100) / 100 : base;
+}
+function atualizaTotal(){
+  const c = Math.max(1, parseInt($("mCotas").value) || 1);
+  $("mTotal").textContent = brl(calcula(c, metodo()));
+}
+$("mCotas").addEventListener("input", atualizaTotal);
+$("mNome").addEventListener("input", () => { if (!pagadorEditado) $("mPagador").value = $("mNome").value; });
+$("mPagador").addEventListener("input", () => { pagadorEditado = true; });
+document.querySelectorAll("input[name=metodo]").forEach(r => r.addEventListener("change", atualizaTotal));
+$("btnFechar").onclick = () => $("modal").close();
+$("btnPronto").onclick = () => $("modal").close();
+$("btnDepois").onclick = () => $("modal").close();
+$("btnJaPaguei").onclick = async () => {
+  $("btnJaPaguei").disabled = true;
+  try {
+    await db.collection(P + "reservas").doc(reservaId).update({status: "informado", informadoEm: firebase.firestore.FieldValue.serverTimestamp()});
+    $("avisarBox").hidden = true; $("obrigadoBox").hidden = false;
+  } catch (e){ console.error(e); $("btnJaPaguei").disabled = false; alert("Não foi possível avisar. Tente de novo."); }
+};
+
+$("btnReservar").onclick = async () => {
+  const nome = $("mNome").value.trim();
+  const pagador = $("mPagador").value.trim() || nome;
+  const cotas = parseInt($("mCotas").value) || 1;
+  const met = metodo();
+  const rest = atual.totalCotas - (atual.reservadas || 0);
+  if (!nome) return mostra($("mErro"), "Digite seu nome para os noivos saberem quem presenteou.");
+  if (cotas < 1 || cotas > rest) return mostra($("mErro"), `Escolha entre 1 e ${rest} cotas.`);
+  if (met === "pix" && !cfg.pixChave) return mostra($("mErro"), "Os noivos ainda não cadastraram a chave Pix.");
+  const linkCartao = atual.linkCartao || cfg.linkCartao || "";
+  if (met === "cartao" && !linkCartao) return mostra($("mErro"), "O pagamento no cartão ainda não está disponível. Escolha Pix.");
+  mostra($("mErro"), ""); $("btnReservar").disabled = true;
+
+  const gRef = db.collection(P + "presentes").doc(atual.id);
+  const cRef = db.collection(P + "config").doc("geral");
+  const rRef = db.collection(P + "reservas").doc();
+  const msg = $("mMsg").value.trim(), mural = $("mMural").checked;
+  try {
+    const r = await db.runTransaction(async t => {
+      const g = await t.get(gRef), c = await t.get(cRef);
+      const gd = g.data(), cd = c.data() || {};
+      const livres = gd.totalCotas - (gd.reservadas || 0);
+      if (cotas > livres) throw new Error(livres ? `Restam só ${livres} cotas deste presente.` : "Este presente acabou de ser escolhido por outra pessoa.");
+      const base = gd.valorCota * cotas;
+      const cobrado = met === "pix" ? base : Math.round(base * (1 + Number(cd.taxaCartao || 0) / 100) * 100) / 100;
+      t.update(gRef, {reservadas: (gd.reservadas || 0) + cotas});
+      t.set(rRef, {
+        presenteId: atual.id, presenteNome: gd.nome, nome, pagador, mensagem: msg, cotas,
+        valor: base, valorCobrado: cobrado, metodo: met,
+        status: "pendente", criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      if (msg && mural) t.set(db.collection(P + "recados").doc(), {nome, mensagem: msg, criadoEm: firebase.firestore.FieldValue.serverTimestamp()});
+      return {cobrado};
+    });
+    reservaId = rRef.id;
+    $("passo1").hidden = true; $("passo2").hidden = false;
+    const zap = String(cfg.whatsapp || "").replace(/\D/g, "");
+    $("btnWhats").hidden = !zap;
+    if (zap) $("btnWhats").href = `https://wa.me/${zap}?text=` + encodeURIComponent(
+      `Oi! Aqui é ${nome}. Fiz o pagamento de ${brl(r.cobrado)} (${met === "pix" ? "Pix" : "cartão"}) do presente "${atual.nome}"${pagador !== nome ? `, no nome de ${pagador}` : ""}. Segue o comprovante.`);
+    $("resPix").hidden = met !== "pix"; $("resCartao").hidden = met !== "cartao";
+    if (met === "pix"){
+      const pl = payloadPix(r.cobrado);
+      $("pixValor").textContent = brl(r.cobrado);
+      $("pixCopia").value = pl;
+      $("qr").innerHTML = "";
+      new QRCode($("qr"), {text: pl, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M});
+    } else {
+      $("cartaoValor").textContent = brl(r.cobrado);
+      $("cartaoLink").href = linkCartao;
+    }
+  } catch (e){
+    console.error(e);
+    mostra($("mErro"), e.message.startsWith("Restam") || e.message.startsWith("Este") ? e.message : "Não foi possível reservar. Verifique sua conexão e tente de novo.");
+    $("btnReservar").disabled = false;
+  }
+};
+$("btnCopiar").onclick = async () => {
+  try { await navigator.clipboard.writeText($("pixCopia").value); }
+  catch { $("pixCopia").select(); document.execCommand("copy"); }
+  $("btnCopiar").textContent = "Copiado";
+  setTimeout(() => $("btnCopiar").textContent = "Copiar", 2000);
+};
+
+/* ---------------- ADMIN: LOGIN ---------------- */
+$("btnEntrar").onclick = async () => {
+  mostra($("lErro"), "");
+  try { await auth.signInWithEmailAndPassword($("lEmail").value.trim(), $("lSenha").value); }
+  catch { mostra($("lErro"), "E-mail ou senha incorretos."); }
+};
+$("lSenha").addEventListener("keydown", e => { if (e.key === "Enter") $("btnEntrar").click(); });
+$("btnSair").onclick = () => auth.signOut();
+document.querySelectorAll(".aba").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".aba").forEach(x => x.setAttribute("aria-selected", x === b));
+  document.querySelectorAll("[data-painel]").forEach(s => s.hidden = s.dataset.painel !== b.dataset.aba);
+});
+
+/* ---------------- ADMIN: RESERVAS ---------------- */
+function dataBR(ts){ return ts?.toDate ? ts.toDate().toLocaleString("pt-BR", {day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit"}) : "—"; }
+const ROTULO = {pendente: "sem aviso", informado: "avisou que pagou", confirmado: "confirmado", cancelado: "cancelado"};
+async function cancelarReserva(r){
+  const gRef = db.collection(P + "presentes").doc(r.presenteId);
+  const rRef = db.collection(P + "reservas").doc(r.id);
+  await db.runTransaction(async t => {
+    const g = await t.get(gRef);
+    if (g.exists) t.update(gRef, {reservadas: Math.max(0, (g.data().reservadas || 0) - r.cotas)});
+    t.update(rRef, {status: "cancelado"});
+  });
+}
+$("btnLiberar").onclick = async () => {
+  const limite = Date.now() - 3 * 864e5;
+  const velhas = reservas.filter(r => r.status === "pendente" && r.criadoEm?.toDate && r.criadoEm.toDate().getTime() < limite);
+  if (!velhas.length) return alert("Nenhuma reserva sem aviso há mais de 3 dias.");
+  if (!confirm(`Cancelar ${velhas.length} ${velhas.length === 1 ? "reserva" : "reservas"} sem aviso de pagamento há mais de 3 dias? As cotas voltam para a lista.\n\n` + velhas.map(r => `• ${r.nome}: ${r.presenteNome}`).join("\n"))) return;
+  for (const r of velhas) await cancelarReserva(r);
+};
+function renderReservas(){
+  const ativas = reservas.filter(r => r.status !== "cancelado");
+  $("rConf").textContent = brl(ativas.filter(r => r.status === "confirmado").reduce((s, r) => s + r.valorCobrado, 0));
+  $("rInf").textContent = brl(ativas.filter(r => r.status === "informado").reduce((s, r) => s + r.valorCobrado, 0));
+  $("rPend").textContent = brl(ativas.filter(r => r.status === "pendente").reduce((s, r) => s + r.valorCobrado, 0));
+  $("rQtd").textContent = ativas.length;
+  const f = $("fStatus").value;
+  const lista = reservas.filter(r => !f || r.status === f);
+  $("tReservas").innerHTML = lista.length ? lista.map(r => `
+    <tr>
+      <td>${dataBR(r.criadoEm)}</td>
+      <td><strong>${esc(r.nome)}</strong>${r.mensagem ? `<br><small style="color:var(--muted)">${esc(r.mensagem)}</small>` : ""}</td>
+      <td>${esc(r.presenteNome)}${r.cotas > 1 ? ` (${r.cotas} cotas)` : ""}</td>
+      <td>${brl(r.valorCobrado)}</td>
+      <td>${r.metodo === "pix" ? "Pix" : "Cartão"}${r.pagador && r.pagador !== r.nome ? `<br><small style="color:var(--muted)">pago por ${esc(r.pagador)}</small>` : ""}</td>
+      <td><span class="status ${r.status}">${ROTULO[r.status] || r.status}</span>${r.informadoEm ? `<br><small style="color:var(--muted)">${dataBR(r.informadoEm)}</small>` : ""}</td>
+      <td><div class="acoes">
+        ${r.status === "pendente" || r.status === "informado" ? `<button class="btn peq" data-conf="${r.id}">Confirmar</button>` : ""}
+        ${r.status === "confirmado" ? `<button class="btn sec peq" data-pend="${r.id}">Desfazer</button>` : ""}
+        ${r.status !== "cancelado" ? `<button class="btn sec peq" data-canc="${r.id}">Cancelar</button>` : ""}
+      </div></td>
+    </tr>`).join("") : `<tr><td colspan="7" class="vazio">Nenhuma reserva ${f ? "com esse status" : "ainda"}.</td></tr>`;
+}
+$("fStatus").onchange = renderReservas;
+$("tReservas").addEventListener("click", async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const ref = id => db.collection(P + "reservas").doc(id);
+  if (b.dataset.conf) await ref(b.dataset.conf).update({status: "confirmado"});
+  if (b.dataset.pend){
+    const r = reservas.find(x => x.id === b.dataset.pend);
+    await ref(r.id).update({status: r.informadoEm ? "informado" : "pendente"});
+  }
+  if (b.dataset.canc){
+    const r = reservas.find(x => x.id === b.dataset.canc);
+    if (!confirm(`Cancelar a reserva de ${r.nome}? As cotas voltam para a lista.`)) return;
+    await cancelarReserva(r);
+  }
+});
+$("btnExport").onclick = () => {
+  const linhas = reservas.map(r => ({
+    "Data": r.criadoEm?.toDate ? r.criadoEm.toDate() : "",
+    "Convidado": r.nome, "Presente": r.presenteNome, "Cotas": r.cotas,
+    "Valor do presente": r.valor, "Valor cobrado": r.valorCobrado,
+    "Método": r.metodo === "pix" ? "Pix" : "Cartão",
+    "Quem pagou": r.pagador || r.nome,
+    "Avisou pagamento em": r.informadoEm?.toDate ? r.informadoEm.toDate() : "",
+    "Status": ROTULO[r.status] || r.status, "Recado": r.mensagem || ""
+  }));
+  const ws = XLSX.utils.json_to_sheet(linhas);
+  ws["!cols"] = [{wch:18},{wch:24},{wch:28},{wch:7},{wch:14},{wch:14},{wch:9},{wch:24},{wch:18},{wch:16},{wch:50}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Presentes");
+  XLSX.writeFile(wb, "presentes-casamento.xlsx");
+};
+
+/* ---------------- ADMIN: PRESENTES ---------------- */
+function renderListaAdmin(){
+  if (!$("listaAdmin")) return;
+  $("listaAdmin").innerHTML = presentes.length ? presentes.map(p => `
+    <div class="linha-admin">
+      <div class="info">
+        <strong>${esc(p.emoji || "🎁")} ${esc(p.nome)}</strong>
+        <small>${brl(p.valorCota)} × ${p.totalCotas} cotas · ${p.reservadas || 0} reservadas${p.ativo === false ? " · oculto" : ""}</small>
+      </div>
+      <div class="acoes">
+        <button class="btn sec peq" data-edit="${p.id}">Editar</button>
+        <button class="btn sec peq" data-del="${p.id}">Excluir</button>
+      </div>
+    </div>`).join("") : `<p class="vazio">Cadastre o primeiro presente no formulário acima.</p>`;
+}
+function limparForm(){
+  editandoId = null;
+  ["pNome","pDesc","pValor","pCotas","pEmoji","pOrdem","pImg","pLink"].forEach(i => $(i).value = "");
+  $("pAtivo").checked = true;
+  $("fTitulo").textContent = "Novo presente";
+  $("btnCancelarEdicao").hidden = true;
+  mostra($("pErro"), "");
+}
+$("btnCancelarEdicao").onclick = limparForm;
+$("listaAdmin").addEventListener("click", async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.edit){
+    const p = presentes.find(x => x.id === b.dataset.edit);
+    editandoId = p.id;
+    $("pNome").value = p.nome; $("pDesc").value = p.descricao || ""; $("pValor").value = p.valorCota;
+    $("pCotas").value = p.totalCotas; $("pEmoji").value = p.emoji || ""; $("pOrdem").value = p.ordem ?? "";
+    $("pImg").value = p.imagem || ""; $("pLink").value = p.linkCartao || ""; $("pAtivo").checked = p.ativo !== false;
+    $("fTitulo").textContent = `Editando: ${p.nome}`;
+    $("btnCancelarEdicao").hidden = false;
+    $("pNome").scrollIntoView({behavior: "smooth", block: "center"}); $("pNome").focus();
+  }
+  if (b.dataset.del){
+    const p = presentes.find(x => x.id === b.dataset.del);
+    if ((p.reservadas || 0) > 0) return alert("Este presente tem cotas reservadas. Cancele as reservas antes, ou desmarque “Mostrar no site” para ocultá-lo.");
+    if (confirm(`Excluir “${p.nome}”?`)) await db.collection(P + "presentes").doc(p.id).delete();
+  }
+});
+$("btnSalvarPresente").onclick = async () => {
+  const nome = $("pNome").value.trim();
+  const valor = parseFloat($("pValor").value), cotas = parseInt($("pCotas").value);
+  if (!nome) return mostra($("pErro"), "Dê um nome ao presente.");
+  if (!(valor > 0)) return mostra($("pErro"), "Informe o valor de cada cota.");
+  if (!(cotas >= 1)) return mostra($("pErro"), "Informe a quantidade de cotas (mínimo 1).");
+  const atualP = editandoId ? presentes.find(p => p.id === editandoId) : null;
+  if (atualP && cotas < (atualP.reservadas || 0)) return mostra($("pErro"), `Já existem ${atualP.reservadas} cotas reservadas. O total não pode ser menor que isso.`);
+  const dados = {
+    nome, descricao: $("pDesc").value.trim(), valorCota: Math.round(valor * 100) / 100, totalCotas: cotas,
+    emoji: $("pEmoji").value.trim(), ordem: $("pOrdem").value === "" ? 999 : parseInt($("pOrdem").value),
+    imagem: $("pImg").value.trim(), linkCartao: $("pLink").value.trim(), ativo: $("pAtivo").checked
+  };
+  try {
+    if (editandoId) await db.collection(P + "presentes").doc(editandoId).update(dados);
+    else await db.collection(P + "presentes").add({...dados, reservadas: 0});
+    limparForm();
+  } catch (e){ console.error(e); mostra($("pErro"), "Não foi possível salvar. Confira as regras do Firestore."); }
+};
+
+/* ---------------- ADMIN: CONFIGURAÇÕES ---------------- */
+function preencherConfig(){
+  $("cNome1").value = cfg.nome1 || "Igor"; $("cNome2").value = cfg.nome2 || "Marcelle";
+  $("cData").value = cfg.data || ""; $("cMsg").value = cfg.mensagem || "";
+  $("cChave").value = cfg.pixChave || ""; $("cBenef").value = cfg.pixNome || ""; $("cCidade").value = cfg.pixCidade || "";
+  $("cTaxa").value = cfg.taxaCartao ?? ""; $("cLink").value = cfg.linkCartao || ""; $("cWhats").value = cfg.whatsapp || "";
+}
+$("btnSalvarConfig").onclick = async () => {
+  const dados = {
+    nome1: $("cNome1").value.trim(), nome2: $("cNome2").value.trim(), data: $("cData").value,
+    mensagem: $("cMsg").value.trim(), pixChave: $("cChave").value.trim(), pixNome: $("cBenef").value.trim(),
+    pixCidade: $("cCidade").value.trim(), taxaCartao: parseFloat($("cTaxa").value) || 0, linkCartao: $("cLink").value.trim(),
+    whatsapp: $("cWhats").value.trim()
+  };
+  try {
+    await db.collection(P + "config").doc("geral").set(dados, {merge: true});
+    $("btnSalvarConfig").textContent = "Salvo";
+    setTimeout(() => $("btnSalvarConfig").textContent = "Salvar configurações", 2000);
+    mostra($("cErro"), "");
+  } catch (e){ console.error(e); mostra($("cErro"), "Não foi possível salvar. Confira as regras do Firestore."); }
+};
+function renderRecadosAdmin(){
+  if (!$("recadosAdmin")) return;
+  $("recadosAdmin").innerHTML = recados.length ? recados.map(r => `
+    <div class="linha-admin"><div class="info"><strong>${esc(r.nome)}</strong><small>${esc(r.mensagem)}</small></div>
+    <div class="acoes"><button class="btn sec peq" data-delrec="${r.id}">Remover</button></div></div>`).join("")
+    : `<p class="dica">Nenhum recado ainda.</p>`;
+}
+$("recadosAdmin").addEventListener("click", async e => {
+  const id = e.target.closest("[data-delrec]")?.dataset.delrec;
+  if (id && confirm("Remover este recado do mural?")) await db.collection(P + "recados").doc(id).delete();
+});
+</script>
+</body>
+</html>
